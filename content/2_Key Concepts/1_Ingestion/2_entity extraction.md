@@ -1,0 +1,2 @@
+ - an LLM doesn’t extract all the available information in a single extraction pass. https://medium.com/data-science/integrating-microsoft-graphrag-into-neo4j-e0d4fa00714c
+ - Multiple passes are token-intensive, so a cheaper model like gpt-4o-mini helps to keep the cost low. https://medium.com/data-science/integrating-microsoft-graphrag-into-neo4j-e0d4fa00714c

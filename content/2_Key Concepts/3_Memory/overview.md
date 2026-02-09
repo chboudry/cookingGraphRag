@@ -1,0 +1,1 @@
+memory can be both in ingestion or 
