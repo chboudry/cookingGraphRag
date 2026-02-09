@@ -1,4 +1,6 @@
-Hello 
+# RAG
+
+## Overview 
 
 ```mermaid
 %%{init:{
@@ -42,3 +44,24 @@ flowchart LR
   U -. optional .-> S2
   A -. optional .-> S2
   ```
+
+  ---
+
+## Retrieval flow (sequence)
+
+At query time, the **user** sends a question; the **retriever** queries the **base** (vector store), then the **LLM** produces an answer from the retrieved context.
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Retriever
+  participant Base
+  participant LLM
+
+  User->>Retriever: Question
+  Retriever->>Base: Search (embedding)
+  Base-->>Retriever: Top-K chunks
+  Retriever->>LLM: Prompt (question + contexts)
+  LLM-->>Retriever: Answer + citations
+  Retriever-->>User: Answer + sources
+```
