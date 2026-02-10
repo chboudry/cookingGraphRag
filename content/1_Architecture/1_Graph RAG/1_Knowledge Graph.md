@@ -1,6 +1,6 @@
 # Graph RAG with Entities
 
-After chunking, we extract **entities** and **relationships** from the text and store them in a graph. Retrieval can then use both embeddings (lexical) and the graph (structural).
+After chunking, we extract **entities** and **relationships** from the text and store everything in **Neo4j**: the graph (Document, Chunk, Entity, relations) and the chunk embeddings (vector index in Neo4j). Retrieval uses both vector similarity search and graph traversal in the same base.
 
 ```mermaid
 %%{init:{
@@ -17,17 +17,24 @@ flowchart LR
     S[Data sources] --> L[Load & normalize]
     L --> C[Chunking]
     C --> E1[Embedding model]
-    E1 --> VS[(Vector store)]
     C --> NER[Entity extraction<br/>NER / LLM]
-    NER --> KG[(Knowledge graph<br/>entities + relations)]
   end
+
+  subgraph N4J["Neo4j"]
+    direction TB
+    V[(Vector index<br/>chunk embeddings)]
+    G[(Graph<br/>Doc, Chunk, Entity, relations)]
+  end
+
+  E1 --> V
+  NER --> G
 
   subgraph Q["Query / Answering (online)"]
     U[User question] --> P[Prompt + preprocessing]
     P --> E2[Embedding model]
     E2 --> R[Retriever]
-    VS --> R
-    KG -.-> R
+    V --> R
+    G --> R
     R --> K[Top-K contexts]
     K --> B[Prompt builder]
     B --> LLM[LLM]
@@ -38,12 +45,12 @@ flowchart LR
 
 ### Database After Ingestion
 
-After ingestion you have:
+Everything lives in **Neo4j**:
 
-- **Chunks**: text passages + optional embedding reference and source metadata.
-- **Entities**: nodes with an identifier, type (or label), name, and optional properties.
-- **Relations**: directed edges between entities (type, source, target).
-- **Chunk–entity links**: which chunks mention which entities (e.g. `MENTIONS`), so retrieval can go from text to graph and back.
+- **Chunks**: nodes with text, position, and **embedding** (stored in a Neo4j vector index for similarity search).
+- **Documents** and **Entities**: nodes with identifiers, types, and properties.
+- **Relations**: PART_OF, NEXT, HAS_ENTITY, RELATES_TO (graph edges in Neo4j).
+- **Vector index**: on chunk embeddings, so semantic search and graph queries run in the same store.
 
 The following class diagram summarizes the **conceptual model** of what is stored: three node types (**Document**, **Chunk**, **Entity**) and four relation types.
 
@@ -58,7 +65,7 @@ classDiagram
   class Chunk {
     +string id
     +string text
-    +string embedding_ref
+    +vector embedding
     +int position
   }
 
@@ -76,25 +83,26 @@ classDiagram
 ```
 
 - **Document**: source unit (file, URL, etc.); chunks are part of it via **PART_OF**.
-- **Chunk**: unstructured passage; **PART_OF** a document, **NEXT** links to the following chunk in order, **HAS_ENTITY** links to entities mentioned in the chunk.
+- **Chunk**: unstructured passage; **PART_OF** a document, **NEXT** for order, **HAS_ENTITY** to entities; `embedding` is stored in Neo4j and indexed for vector search.
 - **Entity**: structured node; **RELATES_TO** links entities to each other (e.g. Person—WORKS_AT—Organization). `type` and `properties` are constrained in a strict schema, open in a free schema.
 
 ---
 
 ## Retrieval flow (sequence)
 
-At query time, the **user** sends a question; the **retriever** queries the **base** (vector store + graph), then the **LLM** produces an answer from the retrieved context.
+At query time the **retriever** queries **Neo4j** only: vector search on the chunk index and graph queries (entity neighborhoods). The LLM then gets the merged context.
 
 ```mermaid
 sequenceDiagram
   participant User
   participant Retriever
-  participant Base
+  participant Neo4j
   participant LLM
 
   User->>Retriever: Question
-  Retriever->>Base: Search (embedding + graph query)
-  Base-->>Retriever: Top-K chunks + entity neighborhoods
+  Retriever->>Neo4j: Vector search (chunk embeddings)
+  Retriever->>Neo4j: Graph query (entity neighborhoods)
+  Neo4j-->>Retriever: Top-K chunks + subgraph
   Retriever->>LLM: Prompt (question + contexts)
   LLM-->>Retriever: Answer + citations
   Retriever-->>User: Answer + sources
