@@ -86,18 +86,6 @@ flowchart TB
 
 ---
 
-## Why unify?
-
-| Data | Role |
-|------|------|
-| **Unstructured (chunks)** | Lexical / semantic search over research text, full passages for citations and context. |
-| **Relational → entities + relations** | Drug compositions, multi-hop reasoning (e.g. medication → ingredients → forms), alignment with the drug database. |
-| **Chunk–entity links** | From a retrieved chunk, follow to related medications/ingredients; from a matched medication, gather all chunks that mention it. |
-
-One graph, one store: drug data (as entities/relations), research chunks, and explicit links between them.
-
----
-
 ## Ingestion (sequence diagram)
 
 Ingestion runs with the drug RDBMS loaded first, then research documents; entities extracted from chunks are resolved to Medication, ActiveIngredient, PharmaceuticalForm.
