@@ -1,6 +1,6 @@
- # Entity Extraction
+ # Entity Recognition
 
- *Can also be called NER (named entity recognition)
+ *Can also be called NER (named entity recognition) or Entity Extraction
  
  A central choice is whether the graph follows a **free schema**, a **strict schema** or an hybrid one.
 

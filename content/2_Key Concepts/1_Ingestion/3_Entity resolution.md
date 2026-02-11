@@ -2,9 +2,39 @@
 
 **Entity resolution** (de-duplication) ensures that each real-world entity is represented once in the knowledge graph. The same entity often appears under slightly different names across documents (e.g. *Silicon Valley Bank* vs *Silicon_Valley_Bank*, *Sinn Fein* vs *Sinn Féin*). Without resolution, the graph stays fragmented, sparse, and inconsistent; with it, data from multiple sources is consolidated into a unified view and retrieval becomes more reliable.
 
-The GraphRAG paper mentions entity resolution but does not ship an implementation—in part because robust, domain-agnostic resolution is hard. The approach below (inspired by the [Neo4j/LangChain “constructing the graph” post](https://medium.com/neo4j/implementing-from-local-to-global-graphrag-with-neo4j-and-langchain-constructing-the-graph-73924cc5bab4)) combines **text embeddings**, **graph algorithms** (k-nearest neighbor, weakly connected components), **word-distance filtering**, and an **LLM** for the final merge decision.
+---
+
+## Classic Entity Resolution (ER) techniques
+
+Before diving into the pipeline used in this doc, here is a short overview of common ER families:
+
+1. **Deterministic rules and normalization**  
+   Normalization (case, accents, punctuation, stopwords); exact or near-exact keys (VAT/SIREN, email, business ID); rules of the form “if same (X, Y, Z) ⇒ match”.  
+   → Very precise; often the best first pass.
+
+2. **Fuzzy matching (strings)**  
+   Jaro–Winkler, Levenshtein; n-grams / TF-IDF; phonetic (Soundex, Metaphone).  
+   → Very useful for organization, person, and address names.
+
+3. **Probabilistic record linkage (e.g. Fellegi–Sunter)**  
+   Compute a match probability from several fields; handles missing or noisy fields well.
+
+4. **Supervised ML (pairwise classification)**  
+   Train a model on “match / non-match” pairs; features = similarities (name, address, dates, etc.).  
+   → Strong in production if you can label a minimum of pairs.
+
+5. **Embeddings + ANN / kNN (vector similarity)**  
+   Encode a “representation” (name + attributes + context); use nearest neighbors to find candidates.  
+   → Very effective when data is heterogeneous, multilingual, or noisy.
+
+6. **Collective ER (graph-based)**  
+   Use the graph to reinforce a decision (e.g. “same company if same subsidiaries + same site + same products”); propagation, constraints, global consistency.  
+   → Very relevant in Graph RAG, since you already have a relational graph.
 
 ---
+
+The approach below (inspired by the [Neo4j/LangChain “constructing the graph” post](https://medium.com/neo4j/implementing-from-local-to-global-graphrag-with-neo4j-and-langchain-constructing-the-graph-73924cc5bab4)) combines several of these ideas—**text embeddings**, **graph algorithms** (k-nearest neighbor, weakly connected components), **word-distance filtering**, and an **LLM**—into a concrete pipeline.
+
 
 ## Pipeline overview
 
@@ -42,6 +72,8 @@ Start with **all entities** already in the knowledge graph (extracted from chunk
 - Build a **k-nearest neighbor (KNN) graph** over these embeddings: connect each entity to its top-K most similar entities (e.g. cosine similarity). Use a **similarity cutoff** (e.g. 0.95) so that only highly similar pairs get a link.
 - In Neo4j with GDS: project the entity graph with `nodeProperties: ["embedding"]`, then run the KNN algorithm in **mutate** mode to add a new relationship type (e.g. `SIMILAR`) and a `score` property. This yields a graph of “candidate duplicate” pairs.
 
+**Note:** KNN here is used in a **different way** from typical vector search (e.g. “find top-K similar chunks for a query”). Here the goal is to **link existing graph nodes to each other** by similarity and then run graph algorithms (WCC, filters, LLM) on those links. **Neo4j GDS** is well suited for this: it runs KNN over node properties in the graph and writes `SIMILAR` edges directly, so you stay in one store and can chain WCC and other algorithms without moving data to a separate vector database. For this entity-resolution workflow, GDS is often more appropriate than a dedicated vector store.
+
 High embedding similarity alone is not enough (e.g. “Google” and “Apple” can be close); the next steps refine the candidates.
 
 ### 3. Weakly connected components + word distance filter
@@ -57,45 +89,6 @@ High embedding similarity alone is not enough (e.g. “Google” and “Apple”
 
 ---
 
-## Data flow (conceptual)
-
-```mermaid
-flowchart TB
-  subgraph INPUT["Input"]
-    E1[Entity A]
-    E2[Entity B]
-    E3[Entity C]
-  end
-
-  subgraph EMBED["Embeddings"]
-    E1 --> V1[vector A]
-    E2 --> V2[vector B]
-    E3 --> V3[vector C]
-  end
-
-  subgraph KNN["KNN graph"]
-    V1 -. similarity > 0.95 .-> V2
-    V2 -. similarity > 0.95 .-> V3
-  end
-
-  subgraph WCC["WCC + word filter"]
-    G1[Group 1: A, B]
-    G2[Group 2: C]
-  end
-
-  subgraph LLM_STEP["LLM"]
-    G1 --> D1{Merge?}
-    D1 -->|Yes| M1[Merge A, B]
-    D1 -->|No| K1[Keep separate]
-  end
-
-  INPUT --> EMBED
-  EMBED --> KNN
-  KNN --> WCC
-  WCC --> LLM_STEP
-```
-
----
 
 ## Parameters and trade-offs
 
