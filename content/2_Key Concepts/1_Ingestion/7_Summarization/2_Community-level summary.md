@@ -4,16 +4,16 @@ A **community-level summary** is a short, human-readable description of a **clus
 
 ---
 
-## 1. Natural associations (detection ↔ summary type)
+## 1. Natural associations
 
 In theory, the two layers are independent: community detection = how you partition the graph; community summarization = how you describe each partition. You can run Leiden and then choose multi-document, structural, or representative summary for the same communities. In practice, the way communities are built influences which summary type fits best. These pairings work well:
 
 | Community method | Nature of the community | Best summary types | Why |
 |------------------|--------------------------|--------------------|-----|
 | **Modularity-based (Leiden / Louvain)** | Cohesive, often topic-like, locally dense | **Multi-document** (best), **Topical**, optionally **Representative** | Communities are topic-like; narrative or thematic summary fits well. |
+| **Domain-based partitioning** | Business or logical segmentation | **Representative**, **template-based** summary | Segments are defined by domain; list key actors or use fixed templates. |
 | **WCC (Weakly Connected Components)** | Strict connected components; often network-oriented (fraud, AML) | **Structural** (best), **Representative** | Meaning comes from **structure**, not necessarily from text. |
 | **kNN-based clustering** (embedding graph) | Semantic clusters based on content similarity | **Topical** (best), **Multi-document** | Semantic coherence; little explicit relational structure. |
-| **Domain-based partitioning** | Business or logical segmentation | **Representative**, **template-based** summary | Segments are defined by domain; list key actors or use fixed templates. |
 
 **What to avoid**
 
@@ -23,8 +23,6 @@ In theory, the two layers are independent: community detection = how you partiti
 ---
 
 ## 2. How to build communities (community detection)
-
-**Community detection** is the step that **partitions the graph** into clusters (communities). The choice of algorithm shapes the nature of the clusters and, in practice, which kind of summary will work best.
 
 | Method | Use when | Typical use |
 |--------|----------|-------------|
@@ -48,7 +46,18 @@ In theory, the two layers are independent: community detection = how you partiti
 
 ---
 
-### B. Weakly Connected Components (WCC)
+### B. Domain-driven partitioning
+
+**Use when:**
+
+- Communities are **defined by business rules**, not only by algorithms.
+- You partition by **entity type**, **sector**, **country**, **businessLine**, **riskCategory**, **useCase**, **projectId**, **time window**, **region**, or other domain logic.
+
+No algorithmic clustering; the partition is given by the domain model.
+
+---
+
+### C. Weakly Connected Components (WCC)
 
 **Use when:**
 
@@ -60,7 +69,7 @@ In theory, the two layers are independent: community detection = how you partiti
 
 ---
 
-### C. Label Propagation (LPA)
+### D. Label Propagation (LPA)
 
 **Use when:**
 
@@ -70,7 +79,7 @@ In theory, the two layers are independent: community detection = how you partiti
 
 ---
 
-### D. kNN graph + clustering
+### E. kNN graph + clustering
 
 **Use when:**
 
@@ -79,17 +88,6 @@ In theory, the two layers are independent: community detection = how you partiti
 - You build a **similarity graph** (kNN edges) and then cluster that graph.
 
 More common in **semantic GraphRAG** variants where the “graph” is induced from vector similarity rather than extracted relations.
-
----
-
-### E. Domain-driven partitioning
-
-**Use when:**
-
-- Communities are **defined by business rules**, not only by algorithms.
-- You partition by **entity type**, **time window**, **region**, or other domain logic.
-
-No algorithmic clustering; the partition is given by the domain model.
 
 ---
 
