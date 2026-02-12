@@ -1,6 +1,7 @@
 import { Children, isValidElement, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 import mermaid from 'mermaid' // mermaid.js – render diagrams from code to SVG
 import type { Components } from 'react-markdown'
 import { ZoomPanMermaid } from './MermaidDiagram'
@@ -53,7 +54,7 @@ export function DocPage({ content }: DocPageProps) {
   return (
     <div className="doc-page">
       <article className="doc-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
           {content}
         </ReactMarkdown>
       </article>
